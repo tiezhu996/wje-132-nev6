@@ -20,6 +20,6 @@ export function rectifyIncident(id: number, data: { measures: string; deadline?:
   return request.post(`/incidents/${id}/rectify`, data)
 }
 
-export function closeIncident(id: number) {
-  return request.post(`/incidents/${id}/close`)
+export function reviewIncident(id: number, data: { approved: boolean; comment?: string }) {
+  return request.post(`/incidents/${id}/review`, data)
 }

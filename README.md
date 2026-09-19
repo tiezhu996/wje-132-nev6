@@ -118,9 +118,13 @@ wje-132/
 - 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`backend/internal/dto/dto_incident.go`、`database/init.sql`
 - 前端：`frontend/src/constants/incident.ts`、`frontend/src/utils/getSeverityColor.ts`、`frontend/src/components/common/RiskLevelTag.tsx`、`frontend/src/pages/IncidentManage.tsx`、`frontend/src/pages/Dashboard.tsx`、`frontend/src/pages/CertReview.tsx`
 
-### IncidentStatus（reported/investigating/resolved/closed）
-- 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`database/init.sql`
+### IncidentStatus（reported/investigating/pending_review/closed；resolved 为历史状态）
+- 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/repository/safety_incident_repository.go`、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`database/init.sql`
 - 前端：`frontend/src/constants/incident.ts`、`frontend/src/components/common/StatusBadge.tsx`、`frontend/src/pages/IncidentManage.tsx`、`frontend/src/pages/Dashboard.tsx`
+
+### ReviewResult（approved/rejected，整改复核结果）
+- 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/util/formatters.go`、`backend/internal/dto/dto_incident.go`、`database/init.sql`
+- 前端：`frontend/src/constants/incident.ts`、`frontend/src/types/index.ts`、`frontend/src/pages/IncidentManage.tsx`
 
 ### UserRole（admin/safety_manager/inspector/worker）
 - 后端：`backend/internal/constants/user.go`、`backend/internal/model/user.go`、`backend/internal/middleware/rbac.go`、`backend/internal/router/*.go`、`backend/internal/util/formatters.go`、`database/init.sql`
@@ -143,8 +147,8 @@ wje-132/
 | POST | /api/v1/incidents | 上报安全事件 |
 | GET | /api/v1/incidents/:id | 事件详情 |
 | POST | /api/v1/incidents/:id/assign | 指派调查 |
-| POST | /api/v1/incidents/:id/rectify | 提交整改 |
-| POST | /api/v1/incidents/:id/close | 关闭事件 |
+| POST | /api/v1/incidents/:id/rectify | 提交整改（进入待复核） |
+| POST | /api/v1/incidents/:id/review | 整改复核（仅安全管理员：验收通过关闭 / 驳回退回整改） |
 | GET | /api/v1/inspections | 检查计划列表 |
 | POST | /api/v1/inspections | 创建检查计划 |
 | GET | /api/v1/inspections/:id | 检查详情与检查项 |
@@ -165,7 +169,8 @@ wje-132/
 ## 主要功能
 
 - 安全概览：近 30 天事件趋势折线图、风险等级分布饼图、待整改列表、本月培训完成率。
-- 事件管理：上报事件、指派调查、提交整改、关闭事件，按严重等级/状态/时间筛选。
+- 事件管理：上报事件、指派调查、提交整改、按严重等级/状态/时间筛选。
+- 整改复核闭环：提交整改后进入待复核，仅安全管理员可验收——验收通过方可关闭事件；驳回必须填写原因并退回整改中（原整改措施与截止时间保留）。状态迁移采用数据库 CAS 条件更新，重复验收或整改与验收并发时只允许一次迁移，失败请求不覆盖复核意见。列表与详情展示待复核状态、驳回原因及复核人。
 - 检查管理：创建检查计划、逐项执行检查（合格/不合格）、得分与检查报告。
 - 培训管理：创建培训、记录签到与通过率。
 - 资质审核：提交资质、审核、过期预警。

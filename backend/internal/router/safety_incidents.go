@@ -16,5 +16,6 @@ func (r *Router) registerIncidentRoutes(g *gin.RouterGroup) {
 	incidents.POST("", r.incident.Report)
 	incidents.POST("/:id/assign", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Assign)
 	incidents.POST("/:id/rectify", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Rectify)
-	incidents.POST("/:id/close", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Close)
+	// 整改复核闭环：只有安全管理员可验收（通过关闭 / 驳回退回整改）
+	incidents.POST("/:id/review", middleware.RequireRole(constants.RoleSafetyManager), r.incident.Review)
 }

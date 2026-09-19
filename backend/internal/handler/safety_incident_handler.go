@@ -114,22 +114,31 @@ func (h *SafetyIncidentHandler) Rectify(c *gin.Context) {
 		h.wrapError(c, err, "SafetyIncident rectify failed")
 		return
 	}
-	OK(c, inc)
+	OKWithMessage(c, constants.MsgIncidentRectified, inc)
 }
 
-// Close 关闭事件。
-func (h *SafetyIncidentHandler) Close(c *gin.Context) {
+// Review 整改复核：验收通过关闭事件，驳回退回整改中。
+func (h *SafetyIncidentHandler) Review(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		Fail(c, http.StatusBadRequest, constants.CodeBadRequest, "SafetyIncident[id] close: invalid id")
+		Fail(c, http.StatusBadRequest, constants.CodeBadRequest, "SafetyIncident[id] review: invalid id")
 		return
 	}
-	inc, err := h.svc.Close(id)
+	var req dto.IncidentReviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		Fail(c, http.StatusBadRequest, constants.CodeBadRequest, "SafetyIncident[id="+strconv.FormatUint(id, 10)+"] review: "+err.Error())
+		return
+	}
+	inc, err := h.svc.Review(id, middleware.GetUserID(c), req.Approved, req.Comment)
 	if err != nil {
-		h.wrapError(c, err, "SafetyIncident close failed")
+		h.wrapError(c, err, "SafetyIncident review failed")
 		return
 	}
-	OKWithMessage(c, constants.MsgIncidentClosed, inc)
+	msg := constants.MsgReviewApproved
+	if !req.Approved {
+		msg = constants.MsgReviewRejected
+	}
+	OKWithMessage(c, msg, inc)
 }
 
 func (h *SafetyIncidentHandler) wrapError(c *gin.Context, err error, ctx string) {

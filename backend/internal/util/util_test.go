@@ -37,6 +37,15 @@ func TestFormatters(t *testing.T) {
 	if IncidentStatusText(constants.IncidentClosed) != "已关闭" {
 		t.Error("incident status text mismatch")
 	}
+	if IncidentStatusText(constants.IncidentPendingReview) != "待复核" {
+		t.Error("pending_review status text mismatch")
+	}
+	if ReviewResultText(constants.ReviewResultApproved) != "验收通过" {
+		t.Error("review approved text mismatch")
+	}
+	if ReviewResultText(constants.ReviewResultRejected) != "已驳回" {
+		t.Error("review rejected text mismatch")
+	}
 	if InspectionStatusText(constants.InspectionCompleted) != "已完成" {
 		t.Error("inspection status text mismatch")
 	}

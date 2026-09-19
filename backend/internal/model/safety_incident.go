@@ -17,6 +17,11 @@ type SafetyIncident struct {
 	Status                string     `gorm:"size:30;not null;default:reported;index" json:"status"`
 	RectificationMeasures string     `gorm:"type:text" json:"rectification_measures"`
 	RectificationDeadline *time.Time `json:"rectification_deadline"`
+	ReviewResult          string     `gorm:"size:20;not null;default:''" json:"review_result"`
+	ReviewComment         string     `gorm:"type:text" json:"review_comment"`
+	ReviewerID            uint64     `gorm:"not null;default:0" json:"reviewer_id"`
+	ReviewedAt            *time.Time `json:"reviewed_at"`
+	ReviewerName          string     `gorm:"-" json:"reviewer_name"`
 	ReporterID            uint64     `gorm:"not null" json:"reporter_id"`
 	CreatedAt             time.Time  `json:"created_at"`
 }

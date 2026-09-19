@@ -16,12 +16,19 @@ var SeverityValues = []string{SeverityNearMiss, SeverityMinor, SeverityModerate,
 const (
 	IncidentReported      = "reported"
 	IncidentInvestigating = "investigating"
-	IncidentResolved      = "resolved"
+	IncidentPendingReview = "pending_review"
+	IncidentResolved      = "resolved" // 历史状态，已由 pending_review 取代
 	IncidentClosed        = "closed"
 )
 
 // IncidentStatusValues 全部事件状态值。
-var IncidentStatusValues = []string{IncidentReported, IncidentInvestigating, IncidentResolved, IncidentClosed}
+var IncidentStatusValues = []string{IncidentReported, IncidentInvestigating, IncidentPendingReview, IncidentResolved, IncidentClosed}
+
+// ReviewResult 整改复核结果枚举。
+const (
+	ReviewResultApproved = "approved"
+	ReviewResultRejected = "rejected"
+)
 
 // InspectionStatus 检查状态枚举。
 const (

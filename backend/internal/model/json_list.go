@@ -17,14 +17,19 @@ func (j JSONList) Value() (driver.Value, error) {
 	return json.Marshal(j)
 }
 
-// Scan 实现 sql.Scanner。
+// Scan 实现 sql.Scanner。兼容 MySQL（[]byte）与 SQLite（string）驱动返回值。
 func (j *JSONList) Scan(v any) error {
 	if v == nil {
 		*j = JSONList{}
 		return nil
 	}
-	b, ok := v.([]byte)
-	if !ok {
+	var b []byte
+	switch t := v.(type) {
+	case []byte:
+		b = t
+	case string:
+		b = []byte(t)
+	default:
 		return errors.New("invalid json bytes")
 	}
 	return json.Unmarshal(b, j)

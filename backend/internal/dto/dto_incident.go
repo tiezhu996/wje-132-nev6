@@ -20,3 +20,9 @@ type RectificationRequest struct {
 	Measures string     `json:"measures" binding:"required"`
 	Deadline *time.Time `json:"deadline"`
 }
+
+// IncidentReviewRequest 整改复核请求。approved=false 时 comment 必填（驳回原因）。
+type IncidentReviewRequest struct {
+	Approved bool   `json:"approved"`
+	Comment  string `json:"comment" binding:"max=500"`
+}

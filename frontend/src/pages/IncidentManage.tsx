@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, message } from 'antd'
+import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, message } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { reportIncident } from '@/api/incident'
 import { useIncidentStore } from '@/stores/incidentStore'
@@ -7,7 +7,7 @@ import { useIncident } from '@/hooks/useIncident'
 import RiskLevelTag from '@/components/common/RiskLevelTag'
 import StatusBadge from '@/components/common/StatusBadge'
 import RoleGuard from '@/components/common/RoleGuard'
-import { IncidentCategories, IncidentStatusOptions, SeverityOptions } from '@/constants/incident'
+import { IncidentCategories, IncidentStatusOptions, ReviewResult, ReviewResultText, SeverityOptions } from '@/constants/incident'
 import { formatDateTime } from '@/utils/dateFormat'
 import type { SafetyIncident } from '@/types'
 
@@ -19,7 +19,11 @@ export default function IncidentManage() {
   const [filters, setFilters] = useState<Record<string, unknown>>({})
   const [open, setOpen] = useState(false)
   const [detailId, setDetailId] = useState<number>()
+  const [rectifyOpen, setRectifyOpen] = useState(false)
+  const [reviewMode, setReviewMode] = useState<'approve' | 'reject' | null>(null)
   const [form] = Form.useForm()
+  const [rectifyForm] = Form.useForm()
+  const [reviewForm] = Form.useForm()
 
   useEffect(() => {
     store.fetchList({ page, page_size: pageSize, ...filters })
@@ -30,6 +34,10 @@ export default function IncidentManage() {
     if (detailId) incident.load(detailId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailId])
+
+  function refreshList() {
+    store.fetchList({ page, page_size: pageSize, ...filters })
+  }
 
   async function onReport() {
     const values = await form.validateFields()
@@ -46,6 +54,36 @@ export default function IncidentManage() {
     setOpen(false)
     form.resetFields()
     setPage(1)
+  }
+
+  async function onRectify() {
+    const values = await rectifyForm.validateFields()
+    if (!detailId) return
+    try {
+      await incident.rectify(
+        detailId,
+        values.measures,
+        values.deadline ? values.deadline.format('YYYY-MM-DDTHH:mm:ss') : undefined,
+      )
+    } catch {
+      // 拦截器已提示（如状态冲突），详情已回读最新状态
+    }
+    setRectifyOpen(false)
+    rectifyForm.resetFields()
+    refreshList()
+  }
+
+  async function onReview() {
+    const values = await reviewForm.validateFields()
+    if (!detailId || !reviewMode) return
+    try {
+      await incident.review(detailId, reviewMode === 'approve', values.comment)
+    } catch {
+      // 拦截器已提示（如重复验收冲突），详情已回读最新复核意见
+    }
+    setReviewMode(null)
+    reviewForm.resetFields()
+    refreshList()
   }
 
   return (
@@ -66,6 +104,13 @@ export default function IncidentManage() {
           { title: '风险等级', dataIndex: 'severity_level', render: (v) => <RiskLevelTag level={v} /> },
           { title: '分类', dataIndex: 'category' },
           { title: '状态', dataIndex: 'status', render: (v) => <StatusBadge status={v} /> },
+          { title: '复核人', dataIndex: 'reviewer_name', width: 90, render: (v) => v || '-' },
+          {
+            title: '复核意见/驳回原因',
+            dataIndex: 'review_comment',
+            ellipsis: true,
+            render: (v, row) => (row.review_result ? v || '-' : '-'),
+          },
           { title: '发生时间', dataIndex: 'occurred_at', render: (v) => formatDateTime(v) },
           {
             title: '操作',
@@ -93,16 +138,69 @@ export default function IncidentManage() {
               <p>{cur.description}</p>
               <p>区域：{cur.area} / 分类：{cur.category}</p>
               <p>整改措施：{cur.rectification_measures || '-'}</p>
+              <p>整改截止时间：{formatDateTime(cur.rectification_deadline)}</p>
+              {cur.review_result && (
+                <Alert
+                  style={{ marginBottom: 16 }}
+                  type={cur.review_result === ReviewResult.REJECTED ? 'error' : 'success'}
+                  message={`复核结果：${ReviewResultText[cur.review_result] || cur.review_result}（复核人：${cur.reviewer_name || '-'}，时间：${formatDateTime(cur.reviewed_at)}）`}
+                  description={`${cur.review_result === ReviewResult.REJECTED ? '驳回原因' : '复核意见'}：${cur.review_comment || '-'}`}
+                />
+              )}
               <RoleGuard roles={['admin', 'safety_manager']}>
                 <Space>
-                  {cur.status === 'reported' && <Button type="primary" onClick={() => incident.assign(cur.id)}>指派调查</Button>}
-                  {cur.status === 'investigating' && <Button onClick={() => incident.rectify(cur.id, '已完成整改，验收合格')}>提交整改</Button>}
-                  {cur.status === 'resolved' && <Button danger onClick={() => incident.close(cur.id)}>关闭事件</Button>}
+                  {cur.status === 'reported' && <Button type="primary" onClick={async () => { await incident.assign(cur.id); refreshList() }}>指派调查</Button>}
+                  {cur.status === 'investigating' && <Button type="primary" onClick={() => setRectifyOpen(true)}>提交整改</Button>}
                 </Space>
+              </RoleGuard>
+              <RoleGuard roles={['safety_manager']}>
+                {cur.status === 'pending_review' && (
+                  <Space>
+                    <Button type="primary" onClick={() => setReviewMode('approve')}>验收通过</Button>
+                    <Button danger onClick={() => setReviewMode('reject')}>驳回</Button>
+                  </Space>
+                )}
               </RoleGuard>
             </div>
           )
         })()}
+      </Modal>
+      <Modal
+        title="提交整改"
+        open={rectifyOpen}
+        onOk={onRectify}
+        onCancel={() => setRectifyOpen(false)}
+        okText="提交并送复核"
+        width={520}
+      >
+        <Alert style={{ marginBottom: 16 }} type="info" message="提交后事件进入待复核，由安全管理员验收通过后关闭。" />
+        <Form form={rectifyForm} layout="vertical">
+          <Form.Item name="measures" label="整改措施" rules={[{ required: true, message: '请填写整改措施' }]}>
+            <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item name="deadline" label="整改截止时间">
+            <DatePicker showTime style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title={reviewMode === 'approve' ? '验收通过' : '驳回整改'}
+        open={!!reviewMode}
+        onOk={onReview}
+        onCancel={() => setReviewMode(null)}
+        okText={reviewMode === 'approve' ? '确认验收通过' : '确认驳回'}
+        okButtonProps={reviewMode === 'reject' ? { danger: true } : undefined}
+        width={520}
+      >
+        <Form form={reviewForm} layout="vertical">
+          <Form.Item
+            name="comment"
+            label={reviewMode === 'reject' ? '驳回原因' : '复核意见（选填）'}
+            rules={reviewMode === 'reject' ? [{ required: true, whitespace: true, message: '驳回必须填写原因' }] : undefined}
+          >
+            <Input.TextArea rows={3} placeholder={reviewMode === 'reject' ? '请说明驳回原因，事件将退回整改中' : '可填写验收意见'} />
+          </Form.Item>
+        </Form>
       </Modal>
     </Card>
   )

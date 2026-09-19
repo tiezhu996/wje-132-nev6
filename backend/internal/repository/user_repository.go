@@ -51,6 +51,18 @@ func (r *UserRepository) FindByPhone(phone string) (*model.User, error) {
 	return &u, nil
 }
 
+// FindByIDs 按 ID 批量查询用户。
+func (r *UserRepository) FindByIDs(ids []uint64) ([]model.User, error) {
+	var list []model.User
+	if len(ids) == 0 {
+		return list, nil
+	}
+	if err := r.db.Where("id IN ?", ids).Find(&list).Error; err != nil {
+		return nil, fmt.Errorf("find users by ids: %w", err)
+	}
+	return list, nil
+}
+
 // Update 更新用户。
 func (r *UserRepository) Update(u *model.User) error {
 	if err := r.db.Save(u).Error; err != nil {

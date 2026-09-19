@@ -45,6 +45,10 @@ func main() {
 
 	userRepo := repository.NewUserRepository(db)
 	incidentRepo := repository.NewSafetyIncidentRepository(db)
+	if err := incidentRepo.MigrateLegacyStatuses(); err != nil {
+		logger.Error("migrate legacy incident status failed", "error", err.Error())
+		os.Exit(1)
+	}
 	inspectionRepo := repository.NewSafetyInspectionRepository(db)
 	itemRepo := repository.NewInspectionItemRepository(db)
 	trainingRepo := repository.NewSafetyTrainingRepository(db)

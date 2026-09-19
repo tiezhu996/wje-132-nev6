@@ -74,6 +74,27 @@ func (r *SafetyIncidentRepository) Update(i *model.SafetyIncident) error {
 	return nil
 }
 
+// TransitionStatus CAS 状态迁移：仅当当前状态等于 from 时才写入 updates，
+// 返回是否实际发生迁移。并发/重复请求下最多只有一个请求迁移成功，
+// 迁移失败的请求不会写入任何字段（包括复核意见）。
+func (r *SafetyIncidentRepository) TransitionStatus(id uint64, from string, updates map[string]any) (bool, error) {
+	res := r.db.Model(&model.SafetyIncident{}).Where("id = ? AND status = ?", id, from).Updates(updates)
+	if res.Error != nil {
+		return false, fmt.Errorf("transition incident status: %w", res.Error)
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// MigrateLegacyStatuses 历史数据迁移：resolved 并入 pending_review（整改复核闭环）。
+func (r *SafetyIncidentRepository) MigrateLegacyStatuses() error {
+	if err := r.db.Model(&model.SafetyIncident{}).
+		Where("status = ?", "resolved").
+		Update("status", "pending_review").Error; err != nil {
+		return fmt.Errorf("migrate legacy incident status: %w", err)
+	}
+	return nil
+}
+
 // Trend30 近 30 天事件趋势。
 func (r *SafetyIncidentRepository) Trend30() ([]map[string]any, error) {
 	start := time.Now().AddDate(0, 0, -29)
