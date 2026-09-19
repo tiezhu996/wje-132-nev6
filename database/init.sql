@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS safety_incidents (
   status VARCHAR(30) NOT NULL DEFAULT 'reported',
   rectification_measures TEXT,
   rectification_deadline DATETIME,
+  review_comment TEXT,
+  review_result VARCHAR(20) NOT NULL DEFAULT '',
+  reviewer_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  reviewer_name VARCHAR(50) NOT NULL DEFAULT '',
+  reviewed_at DATETIME,
   reporter_id BIGINT UNSIGNED NOT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
@@ -115,10 +120,10 @@ INSERT INTO users (id, phone, password_hash, name, avatar, role, created_at) VAL
 (3, '13800000003', '$2a$10$TMTpnDbEwRbtcbF9VJxAxe5IswQjmo7pboKI9zVtU.BYnhzdJpX9a', '李监理', '', 'inspector', NOW(3)),
 (4, '13800000004', '$2a$10$TMTpnDbEwRbtcbF9VJxAxe5IswQjmo7pboKI9zVtU.BYnhzdJpX9a', '赵工', '', 'worker', NOW(3));
 
-INSERT INTO safety_incidents (id, title, description, occurred_at, site_id, area, severity_level, category, involved_user_ids, photo_urls, status, rectification_measures, rectification_deadline, reporter_id, created_at) VALUES
-(1, '脚手架扣件松动', '三层东侧脚手架扣件松动，存在坠落风险。', DATE_SUB(NOW(), INTERVAL 1 DAY), 'SITE-A', '三层东侧', 'major', '坠落', '["4"]', '[]', 'investigating', '重新紧固并加装防坠网', DATE_ADD(NOW(), INTERVAL 3 DAY), 3, NOW(3)),
-(2, '临时用电电缆破损', '二级配电箱电缆绝缘层破损。', DATE_SUB(NOW(), INTERVAL 2 DAY), 'SITE-A', '加工区', 'moderate', '触电', '["4"]', '[]', 'resolved', '更换破损电缆并加套管', DATE_SUB(NOW(), INTERVAL 1 DAY), 3, NOW(3)),
-(3, '高处坠物未遂', '塔吊吊运时构件滑落未造成伤害。', DATE_SUB(NOW(), INTERVAL 5 DAY), 'SITE-A', '吊装区', 'minor', '物体打击', '["4"]', '[]', 'closed', '加强吊装指挥与警戒', DATE_SUB(NOW(), INTERVAL 2 DAY), 2, NOW(3));
+INSERT INTO safety_incidents (id, title, description, occurred_at, site_id, area, severity_level, category, involved_user_ids, photo_urls, status, rectification_measures, rectification_deadline, review_comment, review_result, reviewer_id, reviewer_name, reviewed_at, reporter_id, created_at) VALUES
+(1, '脚手架扣件松动', '三层东侧脚手架扣件松动，存在坠落风险。', DATE_SUB(NOW(), INTERVAL 1 DAY), 'SITE-A', '三层东侧', 'major', '坠落', '["4"]', '[]', 'review_pending', '重新紧固并加装防坠网', DATE_ADD(NOW(), INTERVAL 3 DAY), '', '', 0, '', NULL, 3, NOW(3)),
+(2, '临时用电电缆破损', '二级配电箱电缆绝缘层破损，已整改一次但仍有隐患。', DATE_SUB(NOW(), INTERVAL 2 DAY), 'SITE-A', '加工区', 'moderate', '触电', '["4"]', '[]', 'investigating', '更换破损电缆并加套管', NULL, '套管未覆盖全部破损段，请重新整改并拍照。', 'rejected', 2, '王安全', NOW(3), 3, NOW(3)),
+(3, '高处坠物未遂', '塔吊吊运时构件滑落未造成伤害。', DATE_SUB(NOW(), INTERVAL 5 DAY), 'SITE-A', '吊装区', 'minor', '物体打击', '["4"]', '[]', 'closed', '加强吊装指挥与警戒', DATE_SUB(NOW(), INTERVAL 2 DAY), '现场复核合格，警戒措施到位。', 'approved', 2, '王安全', NOW(3), 2, NOW(3));
 
 INSERT INTO safety_inspections (id, name, inspection_type, area, inspection_date, inspector_id, total_score, status, issue_count, passed_count, created_at) VALUES
 (1, '8月例行安全检查', 'routine', '全工地', DATE_SUB(NOW(), INTERVAL 1 DAY), 3, 92, 'completed', 3, 27, NOW(3)),

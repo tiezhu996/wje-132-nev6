@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"safetyplatform/internal/constants"
 	"safetyplatform/internal/model"
 
 	"gorm.io/gorm"
@@ -74,6 +75,32 @@ func (r *SafetyIncidentRepository) Update(i *model.SafetyIncident) error {
 	return nil
 }
 
+// TransitionStatus 在事务内按“当前状态必须为 expectStatus”做原子条件更新。
+// 并发/重复请求时只有一个请求的 WHERE status = ? 能命中，其余返回 ErrStatusConflict，
+// 从而保证一次状态迁移且失败请求的字段不会落库（复核意见不会被覆盖）。
+func (r *SafetyIncidentRepository) TransitionStatus(id uint64, expectStatus string, fields map[string]any) (*model.SafetyIncident, error) {
+	var out model.SafetyIncident
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.SafetyIncident{}).
+			Where("id = ? AND status = ?", id, expectStatus).
+			Updates(fields)
+		if res.Error != nil {
+			return fmt.Errorf("transition incident status: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return ErrStatusConflict
+		}
+		if err := tx.First(&out, id).Error; err != nil {
+			return fmt.Errorf("reload incident after transition: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Trend30 近 30 天事件趋势。
 func (r *SafetyIncidentRepository) Trend30() ([]map[string]any, error) {
 	start := time.Now().AddDate(0, 0, -29)
@@ -103,6 +130,16 @@ func (r *SafetyIncidentRepository) PendingRectification() ([]model.SafetyInciden
 	if err := r.db.Where("status IN ?", []string{"reported", "investigating"}).
 		Order("rectification_deadline ASC").Limit(10).Find(&list).Error; err != nil {
 		return nil, fmt.Errorf("pending rectification: %w", err)
+	}
+	return list, nil
+}
+
+// PendingReview 待安全管理员复核的事件。
+func (r *SafetyIncidentRepository) PendingReview() ([]model.SafetyIncident, error) {
+	var list []model.SafetyIncident
+	if err := r.db.Where("status = ?", constants.IncidentReviewPending).
+		Order("reviewed_at IS NULL DESC, created_at ASC").Limit(10).Find(&list).Error; err != nil {
+		return nil, fmt.Errorf("pending review: %w", err)
 	}
 	return list, nil
 }

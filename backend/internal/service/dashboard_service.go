@@ -35,6 +35,10 @@ func (s *DashboardService) Stats() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	pendingReview, err := s.incidentSvc.PendingReview()
+	if err != nil {
+		return nil, err
+	}
 	inspectionStats, err := s.inspectionSvc.Stats()
 	if err != nil {
 		return nil, err
@@ -51,6 +55,7 @@ func (s *DashboardService) Stats() (map[string]any, error) {
 		"trend":                   trend,
 		"severity_distribution":   distribution,
 		"pending_rectification":   pending,
+		"pending_review":          pendingReview,
 		"inspection":              inspectionStats,
 		"training_completed_rate": trainingRate["rate"],
 		"expiring_certs":          expiring,

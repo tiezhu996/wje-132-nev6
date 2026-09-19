@@ -118,9 +118,11 @@ wje-132/
 - 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`backend/internal/dto/dto_incident.go`、`database/init.sql`
 - 前端：`frontend/src/constants/incident.ts`、`frontend/src/utils/getSeverityColor.ts`、`frontend/src/components/common/RiskLevelTag.tsx`、`frontend/src/pages/IncidentManage.tsx`、`frontend/src/pages/Dashboard.tsx`、`frontend/src/pages/CertReview.tsx`
 
-### IncidentStatus（reported/investigating/resolved/closed）
-- 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`database/init.sql`
+### IncidentStatus（reported/investigating/review_pending/resolved/closed）
+- 状态机：`reported → investigating（指派）→ review_pending（提交整改）→ closed（安全管理员复核通过）`；复核驳回时 `review_pending → investigating`，必须填写驳回原因，退回整改中且原整改措施与截止时间保留，重新提交后再次进入 review_pending。`resolved → closed` 仅用于兼容复核闭环上线前的历史数据。
+- 后端：`backend/internal/constants/incident.go`、`backend/internal/model/safety_incident.go`、`backend/internal/service/safety_incident_service.go`、`backend/internal/service/safety_incident_state.go`、`backend/internal/repository/safety_incident_repository.go`（TransitionStatus 原子条件迁移）、`backend/internal/util/formatters.go`、`backend/internal/constants/log_templates.go`、`backend/internal/constants/error_codes.go`、`database/init.sql`
 - 前端：`frontend/src/constants/incident.ts`、`frontend/src/components/common/StatusBadge.tsx`、`frontend/src/pages/IncidentManage.tsx`、`frontend/src/pages/Dashboard.tsx`
+- 复核字段：review_comment（驳回原因/复核意见）、review_result（approved/rejected）、reviewer_id、reviewer_name、reviewed_at；重复验收或整改/验收并发时，数据库层 `WHERE id=? AND status=?` 条件更新保证仅一次状态迁移成功，失败请求返回 409 且不覆盖复核意见。
 
 ### UserRole（admin/safety_manager/inspector/worker）
 - 后端：`backend/internal/constants/user.go`、`backend/internal/model/user.go`、`backend/internal/middleware/rbac.go`、`backend/internal/router/*.go`、`backend/internal/util/formatters.go`、`database/init.sql`
@@ -143,8 +145,9 @@ wje-132/
 | POST | /api/v1/incidents | 上报安全事件 |
 | GET | /api/v1/incidents/:id | 事件详情 |
 | POST | /api/v1/incidents/:id/assign | 指派调查 |
-| POST | /api/v1/incidents/:id/rectify | 提交整改 |
-| POST | /api/v1/incidents/:id/close | 关闭事件 |
+| POST | /api/v1/incidents/:id/rectify | 提交整改（进入待复核；驳回后可保留原措施/截止时间重新提交） |
+| POST | /api/v1/incidents/:id/review | 整改复核（仅安全管理员：approved=true 验收通过并关闭；approved=false 必须填写 comment 驳回原因，退回整改中） |
+| POST | /api/v1/incidents/:id/close | 关闭事件（仅兼容复核闭环上线前 resolved 历史数据） |
 | GET | /api/v1/inspections | 检查计划列表 |
 | POST | /api/v1/inspections | 创建检查计划 |
 | GET | /api/v1/inspections/:id | 检查详情与检查项 |
@@ -164,8 +167,8 @@ wje-132/
 
 ## 主要功能
 
-- 安全概览：近 30 天事件趋势折线图、风险等级分布饼图、待整改列表、本月培训完成率。
-- 事件管理：上报事件、指派调查、提交整改、关闭事件，按严重等级/状态/时间筛选。
+- 安全概览：近 30 天事件趋势折线图、风险等级分布饼图、待整改列表、待复核隐患列表、本月培训完成率。
+- 事件管理：上报事件、指派调查、提交整改（进入待复核）、安全管理员复核验收通过关闭 / 填写原因驳回退回整改（原措施与截止时间保留）、状态并发原子迁移，按严重等级/状态/时间筛选。
 - 检查管理：创建检查计划、逐项执行检查（合格/不合格）、得分与检查报告。
 - 培训管理：创建培训、记录签到与通过率。
 - 资质审核：提交资质、审核、过期预警。

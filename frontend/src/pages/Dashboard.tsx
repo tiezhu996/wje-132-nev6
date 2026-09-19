@@ -12,6 +12,7 @@ interface Stats {
   trend: { day: string; cnt: number }[]
   severity_distribution: { severity_level: string; cnt: number }[]
   pending_rectification: SafetyIncident[]
+  pending_review: SafetyIncident[]
   inspection: { total: number; completed_rate: number }
   training_completed_rate: number
   expiring_certs: unknown[]
@@ -57,6 +58,20 @@ export default function Dashboard() {
         <Table<SafetyIncident>
           rowKey="id"
           dataSource={stats?.pending_rectification || []}
+          pagination={false}
+          columns={[
+            { title: '标题', dataIndex: 'title' },
+            { title: '区域', dataIndex: 'area' },
+            { title: '风险等级', dataIndex: 'severity_level', render: (v) => <RiskLevelTag level={v} /> },
+            { title: '状态', dataIndex: 'status', render: (v) => <StatusBadge status={v} /> },
+            { title: '整改期限', dataIndex: 'rectification_deadline', render: (v) => formatDate(v) },
+          ]}
+        />
+      </Card>
+      <Card title="待复核隐患" style={{ marginTop: 16 }}>
+        <Table<SafetyIncident>
+          rowKey="id"
+          dataSource={stats?.pending_review || []}
           pagination={false}
           columns={[
             { title: '标题', dataIndex: 'title' },

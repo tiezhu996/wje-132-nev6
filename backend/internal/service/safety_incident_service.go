@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"safetyplatform/internal/constants"
@@ -48,51 +50,135 @@ func (s *SafetyIncidentService) Assign(id uint64) (*model.SafetyIncident, error)
 	if err != nil {
 		return nil, util.Wrap(err, "SafetyIncident[id=%d] assign find failed", id)
 	}
-	if i.Status != constants.IncidentReported {
+	if !canTransitionIncident(i.Status, constants.IncidentInvestigating) {
 		return nil, util.NewAppError(constants.CodeIncidentStatusConflict, "SafetyIncident[id="+u64(id)+"] assign conflict: status="+i.Status)
 	}
-	i.Status = constants.IncidentInvestigating
-	if err := s.repo.Update(i); err != nil {
-		return nil, util.Wrap(err, "SafetyIncident[id=%d] assign save failed", id)
+	out, err := s.transition(id, i.Status, map[string]any{"status": constants.IncidentInvestigating}, constants.LogIncidentAssignSuccess, "assign")
+	if err != nil {
+		return nil, err
 	}
-	s.logger.Info(constants.LogIncidentAssignSuccess, "incident_id", i.ID)
-	return i, nil
+	return out, nil
 }
 
-// SubmitRectification 提交整改。
+// SubmitRectification 提交整改：提交后进入待复核（review_pending）。
+// 驳回后重新提交时，若未重新填写措施/截止时间则保留原值，仅执行状态迁移。
 func (s *SafetyIncidentService) SubmitRectification(id uint64, measures string, deadline *time.Time) (*model.SafetyIncident, error) {
 	i, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, util.Wrap(err, "SafetyIncident[id=%d] rectify find failed", id)
 	}
-	if i.Status != constants.IncidentInvestigating {
+	if !canTransitionIncident(i.Status, constants.IncidentReviewPending) {
 		return nil, util.NewAppError(constants.CodeIncidentStatusConflict, "SafetyIncident[id="+u64(id)+"] rectify conflict: status="+i.Status)
 	}
-	i.RectificationMeasures = measures
-	i.RectificationDeadline = deadline
-	i.Status = constants.IncidentResolved
-	if err := s.repo.Update(i); err != nil {
-		return nil, util.Wrap(err, "SafetyIncident[id=%d] rectify save failed", id)
+	measures = strings.TrimSpace(measures)
+	// 首次提交必须有整改措施；驳回后重新提交允许留空，留空则保留原措施。
+	if measures == "" && strings.TrimSpace(i.RectificationMeasures) == "" {
+		return nil, util.NewAppError(constants.CodeValidationFailed,
+			"SafetyIncident[id="+u64(id)+"] rectify failed: rectification_measures required")
 	}
-	s.logger.Info(constants.LogIncidentRectifySuccess, "incident_id", i.ID)
-	return i, nil
+	fields := map[string]any{"status": constants.IncidentReviewPending}
+	if measures != "" {
+		fields["rectification_measures"] = measures
+	}
+	if deadline != nil {
+		fields["rectification_deadline"] = deadline
+	}
+	// 进入待复核时清理上一轮的复核痕迹，避免旧意见误导本次复核；整改措施与截止时间不在此清除。
+	fields["review_result"] = ""
+	fields["review_comment"] = ""
+	fields["reviewer_id"] = 0
+	fields["reviewer_name"] = ""
+	fields["reviewed_at"] = nil
+	out, err := s.transition(id, i.Status, fields, constants.LogIncidentRectifySuccess, "rectify")
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info(constants.LogIncidentRectifySuccess, "incident_id", id)
+	return out, nil
 }
 
-// Close 关闭事件。
+// Review 安全管理员复核整改。approved=true 验收通过并关闭；approved=false 驳回，
+// 必须填写驳回原因，退回整改中，原整改措施与截止时间保留。
+func (s *SafetyIncidentService) Review(id, reviewerID uint64, reviewerName string, approved bool, comment string) (*model.SafetyIncident, error) {
+	comment = strings.TrimSpace(comment)
+	if !approved && comment == "" {
+		return nil, util.NewAppError(constants.CodeReviewCommentRequired,
+			"SafetyIncident[id="+u64(id)+"] review reject failed: review_comment required")
+	}
+	i, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, util.Wrap(err, "SafetyIncident[id=%d] review find failed", id)
+	}
+	if i.Status != constants.IncidentReviewPending {
+		return nil, util.NewAppError(constants.CodeIncidentStatusConflict, "SafetyIncident[id="+u64(id)+"] review conflict: status="+i.Status+", expect=review_pending")
+	}
+	targetStatus := constants.IncidentClosed
+	result := constants.ReviewApproved
+	logTpl := constants.LogIncidentReviewSuccess
+	if !approved {
+		targetStatus = constants.IncidentInvestigating
+		result = constants.ReviewRejected
+		logTpl = constants.LogIncidentReviewRejected
+	}
+	now := time.Now()
+	fields := map[string]any{
+		"status":         targetStatus,
+		"review_result":  result,
+		"review_comment": comment,
+		"reviewer_id":    reviewerID,
+		"reviewer_name":  reviewerName,
+		"reviewed_at":    now,
+	}
+	out, err := s.transition(id, i.Status, fields, logTpl, "review")
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Info(logTpl, "incident_id", id, "reviewer_id", reviewerID, "review_result", result)
+	return out, nil
+}
+
+// Close 关闭事件（仅兼容复核闭环上线前 status=resolved 的历史数据）。
 func (s *SafetyIncidentService) Close(id uint64) (*model.SafetyIncident, error) {
 	i, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, util.Wrap(err, "SafetyIncident[id=%d] close find failed", id)
 	}
-	if i.Status != constants.IncidentResolved {
+	if !canTransitionIncident(i.Status, constants.IncidentClosed) {
 		return nil, util.NewAppError(constants.CodeIncidentStatusConflict, "SafetyIncident[id="+u64(id)+"] close conflict: status="+i.Status)
 	}
-	i.Status = constants.IncidentClosed
-	if err := s.repo.Update(i); err != nil {
-		return nil, util.Wrap(err, "SafetyIncident[id=%d] close save failed", id)
+	out, err := s.transition(id, i.Status, map[string]any{"status": constants.IncidentClosed}, constants.LogIncidentCloseSuccess, "close")
+	if err != nil {
+		return nil, err
 	}
-	s.logger.Info(constants.LogIncidentCloseSuccess, "incident_id", i.ID)
-	return i, nil
+	return out, nil
+}
+
+// transition 执行原子条件状态迁移，将仓储层并发冲突转换为业务错误。
+func (s *SafetyIncidentService) transition(id uint64, expectStatus string, fields map[string]any, logTpl, action string) (*model.SafetyIncident, error) {
+	out, err := s.repo.TransitionStatus(id, expectStatus, fields)
+	if err != nil {
+		if errors.Is(err, repository.ErrStatusConflict) {
+			s.logger.Warn(constants.LogIncidentStatusChangeFailed, "incident_id", id, "action", action, "expect", expectStatus)
+			return nil, util.NewAppError(constants.CodeIncidentReviewConflict,
+				"SafetyIncident[id="+u64(id)+"] "+action+" conflict: status already moved (duplicate or concurrent request)")
+		}
+		s.logger.Error(constants.LogIncidentStatusChangeFailed, "incident_id", id, "action", action, "error", err.Error())
+		return nil, util.Wrap(err, "SafetyIncident[id=%d] %s transition failed", id, action)
+	}
+	s.logger.Info(logTpl, "incident_id", id)
+	return out, nil
+}
+
+// ResolveReviewerName 查询复核人姓名。
+func (s *SafetyIncidentService) ResolveReviewerName(reviewerID uint64) string {
+	if reviewerID == 0 {
+		return ""
+	}
+	u, err := s.userRepo.FindByID(reviewerID)
+	if err != nil {
+		return ""
+	}
+	return u.Name
 }
 
 // List 分页查询事件。
@@ -118,6 +204,11 @@ func (s *SafetyIncidentService) SeverityDistribution() ([]map[string]any, error)
 // PendingRectification 待整改列表。
 func (s *SafetyIncidentService) PendingRectification() ([]model.SafetyIncident, error) {
 	return s.repo.PendingRectification()
+}
+
+// PendingReview 待复核列表。
+func (s *SafetyIncidentService) PendingReview() ([]model.SafetyIncident, error) {
+	return s.repo.PendingReview()
 }
 
 func u64(v uint64) string {

@@ -16,12 +16,32 @@ var SeverityValues = []string{SeverityNearMiss, SeverityMinor, SeverityModerate,
 const (
 	IncidentReported      = "reported"
 	IncidentInvestigating = "investigating"
+	IncidentReviewPending = "review_pending"
 	IncidentResolved      = "resolved"
 	IncidentClosed        = "closed"
 )
 
 // IncidentStatusValues 全部事件状态值。
-var IncidentStatusValues = []string{IncidentReported, IncidentInvestigating, IncidentResolved, IncidentClosed}
+var IncidentStatusValues = []string{IncidentReported, IncidentInvestigating, IncidentReviewPending, IncidentResolved, IncidentClosed}
+
+// ReviewResult 隐患整改复核结论。
+const (
+	ReviewApproved = "approved"
+	ReviewRejected = "rejected"
+)
+
+// ReviewResultValues 全部复核结论值。
+var ReviewResultValues = []string{ReviewApproved, ReviewRejected}
+
+// IsValidReviewResult 校验复核结论。
+func IsValidReviewResult(r string) bool {
+	for _, v := range ReviewResultValues {
+		if v == r {
+			return true
+		}
+	}
+	return false
+}
 
 // InspectionStatus 检查状态枚举。
 const (

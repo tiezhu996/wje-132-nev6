@@ -21,6 +21,11 @@ export interface SafetyIncident {
   status: string
   rectification_measures: string
   rectification_deadline: string | null
+  review_comment: string
+  review_result: string
+  reviewer_id: number
+  reviewer_name: string
+  reviewed_at: string | null
   reporter_id: number
   created_at: string
 }

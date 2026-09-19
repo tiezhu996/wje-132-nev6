@@ -44,8 +44,10 @@ func IncidentStatusText(s string) string {
 		return "已上报"
 	case constants.IncidentInvestigating:
 		return "调查中"
+	case constants.IncidentReviewPending:
+		return "待复核"
 	case constants.IncidentResolved:
-		return "已整改"
+		return "整改中"
 	case constants.IncidentClosed:
 		return "已关闭"
 	default:

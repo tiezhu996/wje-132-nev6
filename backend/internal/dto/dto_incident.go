@@ -15,8 +15,15 @@ type IncidentReportRequest struct {
 	PhotoURLs       []string  `json:"photo_urls"`
 }
 
-// RectificationRequest 整改请求。
+// RectificationRequest 整改请求。驳回后重新提交时措施与截止时间可留空，留空则保留原值。
 type RectificationRequest struct {
-	Measures string     `json:"measures" binding:"required"`
+	Measures string     `json:"measures"`
 	Deadline *time.Time `json:"deadline"`
+}
+
+// IncidentReviewRequest 隐患整改复核请求。
+// approved=true 验收通过并关闭；approved=false 驳回，comment 必填驳回原因。
+type IncidentReviewRequest struct {
+	Approved bool   `json:"approved"`
+	Comment  string `json:"comment" binding:"max=500"`
 }

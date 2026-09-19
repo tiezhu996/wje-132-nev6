@@ -16,8 +16,12 @@ export function assignIncident(id: number) {
   return request.post(`/incidents/${id}/assign`)
 }
 
-export function rectifyIncident(id: number, data: { measures: string; deadline?: string }) {
+export function rectifyIncident(id: number, data: { measures?: string; deadline?: string | null }) {
   return request.post(`/incidents/${id}/rectify`, data)
+}
+
+export function reviewIncident(id: number, data: { approved: boolean; comment?: string }) {
+  return request.post(`/incidents/${id}/review`, data)
 }
 
 export function closeIncident(id: number) {

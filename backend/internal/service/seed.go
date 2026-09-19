@@ -44,10 +44,13 @@ func (s *SeedService) Seed() error {
 			return err
 		}
 	}
+	now := time.Now()
+	incident1Deadline := now.AddDate(0, 0, 3)
+	incident3Deadline := now.AddDate(0, 0, -2)
 	incidents := []model.SafetyIncident{
-		{Title: "脚手架扣件松动", Description: "三层东侧脚手架扣件松动，存在坠落风险。", OccurredAt: time.Now().AddDate(0, 0, -1), SiteID: "SITE-A", Area: "三层东侧", SeverityLevel: constants.SeverityMajor, Category: "坠落", InvolvedUserIDs: model.JSONList{"4"}, Status: constants.IncidentInvestigating, ReporterID: 3},
-		{Title: "临时用电电缆破损", Description: "二级配电箱电缆绝缘层破损。", OccurredAt: time.Now().AddDate(0, 0, -2), SiteID: "SITE-A", Area: "加工区", SeverityLevel: constants.SeverityModerate, Category: "触电", InvolvedUserIDs: model.JSONList{"4"}, Status: constants.IncidentResolved, ReporterID: 3},
-		{Title: "高处坠物未遂", Description: "塔吊吊运时构件滑落未造成伤害。", OccurredAt: time.Now().AddDate(0, 0, -5), SiteID: "SITE-A", Area: "吊装区", SeverityLevel: constants.SeverityMinor, Category: "物体打击", InvolvedUserIDs: model.JSONList{"4"}, Status: constants.IncidentClosed, ReporterID: 2},
+		{Title: "脚手架扣件松动", Description: "三层东侧脚手架扣件松动，存在坠落风险。", OccurredAt: now.AddDate(0, 0, -1), SiteID: "SITE-A", Area: "三层东侧", SeverityLevel: constants.SeverityMajor, Category: "坠落", InvolvedUserIDs: model.JSONList{"4"}, RectificationMeasures: "重新紧固并加装防坠网", RectificationDeadline: &incident1Deadline, Status: constants.IncidentReviewPending, ReporterID: 3},
+		{Title: "临时用电电缆破损", Description: "二级配电箱电缆绝缘层破损，已整改一次但仍有隐患。", OccurredAt: now.AddDate(0, 0, -2), SiteID: "SITE-A", Area: "加工区", SeverityLevel: constants.SeverityModerate, Category: "触电", InvolvedUserIDs: model.JSONList{"4"}, RectificationMeasures: "更换破损电缆并加套管", Status: constants.IncidentInvestigating, ReviewResult: constants.ReviewRejected, ReviewComment: "套管未覆盖全部破损段，请重新整改并拍照。", ReviewerID: 2, ReviewerName: "王安全", ReviewedAt: &now, ReporterID: 3},
+		{Title: "高处坠物未遂", Description: "塔吊吊运时构件滑落未造成伤害。", OccurredAt: now.AddDate(0, 0, -5), SiteID: "SITE-A", Area: "吊装区", SeverityLevel: constants.SeverityMinor, Category: "物体打击", InvolvedUserIDs: model.JSONList{"4"}, RectificationMeasures: "加强吊装指挥与警戒", RectificationDeadline: &incident3Deadline, Status: constants.IncidentClosed, ReviewResult: constants.ReviewApproved, ReviewComment: "现场复核合格，警戒措施到位。", ReviewerID: 2, ReviewerName: "王安全", ReviewedAt: &now, ReporterID: 2},
 	}
 	for i := range incidents {
 		if err := s.db.Create(&incidents[i]).Error; err != nil {
@@ -82,7 +85,6 @@ func (s *SeedService) Seed() error {
 			return err
 		}
 	}
-	now := time.Now()
 	certs := []model.WorkerCertification{
 		{UserID: 4, CertType: "特种作业证", CertNo: "TZ20260001", IssueOrg: "市应急管理局", IssueDate: &now, ValidUntil: &now, Status: constants.CertApproved},
 		{UserID: 3, CertType: "安全员证", CertNo: "AQ20260002", IssueOrg: "市住建局", IssueDate: &now, ValidUntil: &now, Status: constants.CertPending},

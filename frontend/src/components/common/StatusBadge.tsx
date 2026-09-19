@@ -4,6 +4,7 @@ import { IncidentStatusText } from '@/constants/incident'
 const statusColor: Record<string, string> = {
   reported: 'red',
   investigating: 'orange',
+  review_pending: 'gold',
   resolved: 'blue',
   closed: 'green',
   scheduled: 'default',

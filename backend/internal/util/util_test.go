@@ -37,6 +37,12 @@ func TestFormatters(t *testing.T) {
 	if IncidentStatusText(constants.IncidentClosed) != "已关闭" {
 		t.Error("incident status text mismatch")
 	}
+	if IncidentStatusText(constants.IncidentReviewPending) != "待复核" {
+		t.Error("review_pending status text mismatch")
+	}
+	if IncidentStatusText(constants.IncidentResolved) != "整改中" {
+		t.Error("resolved status text mismatch")
+	}
 	if InspectionStatusText(constants.InspectionCompleted) != "已完成" {
 		t.Error("inspection status text mismatch")
 	}
@@ -57,5 +63,11 @@ func TestSeverityValidators(t *testing.T) {
 	}
 	if !constants.IsValidIncidentStatus(constants.IncidentResolved) {
 		t.Error("resolved should be valid")
+	}
+	if !constants.IsValidIncidentStatus(constants.IncidentReviewPending) {
+		t.Error("review_pending should be valid")
+	}
+	if !constants.IsValidReviewResult(constants.ReviewRejected) {
+		t.Error("rejected review result should be valid")
 	}
 }

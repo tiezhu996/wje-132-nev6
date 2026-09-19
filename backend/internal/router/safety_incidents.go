@@ -16,5 +16,6 @@ func (r *Router) registerIncidentRoutes(g *gin.RouterGroup) {
 	incidents.POST("", r.incident.Report)
 	incidents.POST("/:id/assign", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Assign)
 	incidents.POST("/:id/rectify", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Rectify)
+	incidents.POST("/:id/review", middleware.RequireRole(constants.RoleSafetyManager), r.incident.Review)
 	incidents.POST("/:id/close", middleware.RequireRole(constants.RoleAdmin, constants.RoleSafetyManager), r.incident.Close)
 }
